@@ -9,6 +9,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.Slider;
 import javafx.scene.input.KeyCode;
@@ -27,7 +28,9 @@ import javafx.stage.Stage;
 import javafx.util.Duration;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 public class App extends Application {
@@ -49,7 +52,6 @@ public class App extends Application {
     private boolean isGameCurrentlyOver = false;
     private boolean isGamePaused = false;
 
-    // Timer Variables
     private int timeSecondsElapsed = 0;
     private boolean isFirstClick = true;
     private Timeline gameTimer;
@@ -63,9 +65,24 @@ public class App extends Application {
     private VBox pauseMenuOverlay;
     private Button optionsReturnButton;
 
-    // Leaderboard Variables
     private GridPane leaderboardTable;
     private String currentLeaderboardDifficulty = "Easy";
+
+    private boolean isDarkMode = false;
+    private BorderPane mainMenuRoot;
+    private VBox optionsVerticalLayout;
+    private VBox leaderboardLayout;
+    private Text titleDisplayText;
+    private Text optionsTitleText;
+    private Text leaderboardTitle;
+    private Label musicControlLabel;
+    private Label soundControlLabel;
+    private Label themeLabel;
+    private Label musicTrackLabel;
+    private Label clickSoundLabel;
+
+    private String savedMusicTrack = null;
+    private String savedClickSound = null;
 
     @Override
     public void start(Stage applicationStage) {
@@ -74,8 +91,16 @@ public class App extends Application {
         this.mainApplicationStage = applicationStage;
         this.currentAudioSystem = new AudioSystem();
 
+        isDarkMode = Boolean.parseBoolean(DatabaseHelper.loadSetting("dark_mode", "false"));
+        savedMusicTrack = DatabaseHelper.loadSetting("music_track", null);
+        savedClickSound = DatabaseHelper.loadSetting("click_sound", null);
+
+        if (savedMusicTrack != null) currentAudioSystem.setMusicTrack(savedMusicTrack);
+        if (savedClickSound != null) currentAudioSystem.setClickSound(savedClickSound);
+
         buildOptionsMenuInterface();
         buildMainMenuInterface();
+        updateTheme();
 
         mainApplicationStage.setTitle("JavaFX Minesweeper");
         mainApplicationStage.setScene(mainMenuScene);
@@ -84,28 +109,23 @@ public class App extends Application {
     }
 
     private void buildMainMenuInterface() {
-        BorderPane rootLayout = new BorderPane();
-        rootLayout.setPrefSize(800, 600);
-        rootLayout.setStyle("-fx-background-color: #f4f4f4;");
+        mainMenuRoot = new BorderPane();
+        mainMenuRoot.setPrefSize(800, 600);
 
-        // --- TOP: TITLE ---
         HBox titleBox = new HBox();
         titleBox.setAlignment(Pos.CENTER);
-        titleBox.setPadding(new Insets(40, 0, 20, 0)); // Pushes it slightly below the "roof"
-        Text titleDisplayText = new Text("MINESWEEPER");
+        titleBox.setPadding(new Insets(40, 0, 20, 0));
+        titleDisplayText = new Text("MINESWEEPER");
         titleDisplayText.setFont(Font.font("Arial", FontWeight.BOLD, 50));
         titleBox.getChildren().add(titleDisplayText);
+        mainMenuRoot.setTop(titleBox);
 
-        rootLayout.setTop(titleBox);
-
-        // --- LEFT SIDE: LEADERBOARD ---
-        VBox leaderboardLayout = new VBox(15);
+        leaderboardLayout = new VBox(15);
         leaderboardLayout.setAlignment(Pos.TOP_CENTER);
         leaderboardLayout.setPrefWidth(280);
-        leaderboardLayout.setPadding(new Insets(20, 20, 20, 20)); // Sticks to the wall, with inner breathing room
-        leaderboardLayout.setStyle("-fx-background-color: #e9ecef; -fx-border-color: #ced4da; -fx-border-width: 0 2 0 0;");
+        leaderboardLayout.setPadding(new Insets(20, 20, 20, 20));
 
-        Text leaderboardTitle = new Text("LEADERBOARDS");
+        leaderboardTitle = new Text("LEADERBOARDS");
         leaderboardTitle.setFont(Font.font("Arial", FontWeight.BOLD, 22));
 
         HBox difficultySwitcher = new HBox(10);
@@ -121,59 +141,48 @@ public class App extends Application {
 
         leaderboardTable = new GridPane();
         leaderboardTable.setAlignment(Pos.CENTER);
-        // This creates the "Excel" grid lines by showing the background color through the gaps
         leaderboardTable.setStyle("-fx-background-color: #adb5bd; -fx-border-color: #adb5bd; -fx-border-width: 1;");
         leaderboardTable.setHgap(1);
         leaderboardTable.setVgap(1);
-
         updateLeaderboardTable();
 
         leaderboardLayout.getChildren().addAll(leaderboardTitle, difficultySwitcher, leaderboardTable);
-        rootLayout.setLeft(leaderboardLayout);
+        mainMenuRoot.setLeft(leaderboardLayout);
 
-        // --- CENTER: MAIN MENU BUTTONS ---
         VBox menuVerticalLayout = new VBox(20);
         menuVerticalLayout.setAlignment(Pos.CENTER);
-        // We push it slightly left so it centers perfectly in the remaining visual space
         menuVerticalLayout.setPadding(new Insets(0, 50, 80, 0));
 
-        Button selectEasyButton = new Button("Play Easy");
-        selectEasyButton.setPrefWidth(150);
-        Button selectHardButton = new Button("Play Hard");
-        selectHardButton.setPrefWidth(150);
-        Button selectExtremeButton = new Button("Play Extreme");
-        selectExtremeButton.setPrefWidth(150);
-        Button selectOptionsButton = new Button("Options");
-        selectOptionsButton.setPrefWidth(150);
-        Button quitDesktopButton = new Button("Quit Game");
-        quitDesktopButton.setPrefWidth(150);
+        Button selectEasyButton = new Button("Play Easy");       selectEasyButton.setPrefWidth(150);
+        Button selectHardButton = new Button("Play Hard");       selectHardButton.setPrefWidth(150);
+        Button selectExtremeButton = new Button("Play Extreme"); selectExtremeButton.setPrefWidth(150);
+        Button selectOptionsButton = new Button("Options");      selectOptionsButton.setPrefWidth(150);
+        Button quitDesktopButton = new Button("Quit Game");      quitDesktopButton.setPrefWidth(150);
 
-        selectEasyButton.setOnAction(actionEvent -> controlGameInitialization(9, 9, 10, "Easy"));
-        selectHardButton.setOnAction(actionEvent -> controlGameInitialization(15, 15, 30, "Hard"));
-        selectExtremeButton.setOnAction(actionEvent -> controlGameInitialization(20, 20, 80, "Extreme"));
+        selectEasyButton.setOnAction(e -> controlGameInitialization(9, 9, 10, "Easy"));
+        selectHardButton.setOnAction(e -> controlGameInitialization(15, 15, 30, "Hard"));
+        selectExtremeButton.setOnAction(e -> controlGameInitialization(20, 20, 80, "Extreme"));
 
-        selectOptionsButton.setOnAction(actionEvent -> {
-            optionsReturnButton.setOnAction(e -> mainApplicationStage.setScene(mainMenuScene));
+        selectOptionsButton.setOnAction(e -> {
+            optionsReturnButton.setOnAction(ev -> mainApplicationStage.setScene(mainMenuScene));
             mainApplicationStage.setScene(optionsMenuScene);
         });
+        quitDesktopButton.setOnAction(e -> Platform.exit());
 
-        quitDesktopButton.setOnAction(actionEvent -> Platform.exit());
-
-        menuVerticalLayout.getChildren().addAll(selectEasyButton, selectHardButton, selectExtremeButton, selectOptionsButton, quitDesktopButton);
-
-        rootLayout.setCenter(menuVerticalLayout);
-        mainMenuScene = new Scene(rootLayout);
+        menuVerticalLayout.getChildren().addAll(
+                selectEasyButton, selectHardButton, selectExtremeButton,
+                selectOptionsButton, quitDesktopButton
+        );
+        mainMenuRoot.setCenter(menuVerticalLayout);
+        mainMenuScene = new Scene(mainMenuRoot);
     }
 
     private void updateLeaderboardTable() {
         leaderboardTable.getChildren().clear();
-
-        // Table Headers
         leaderboardTable.add(createTableCell("Rank", true), 0, 0);
         leaderboardTable.add(createTableCell("Time", true), 1, 0);
 
         List<Integer> scores = DatabaseHelper.getTop5Scores(currentLeaderboardDifficulty);
-
         if (scores.isEmpty()) {
             StackPane emptyCell = createTableCell("No scores yet", false);
             emptyCell.setPrefWidth(200);
@@ -181,52 +190,174 @@ public class App extends Application {
         } else {
             for (int i = 0; i < scores.size(); i++) {
                 leaderboardTable.add(createTableCell("N" + (i + 1), false), 0, i + 1);
-
                 int totalSeconds = scores.get(i);
-                int minutes = totalSeconds / 60;
-                int seconds = totalSeconds % 60;
-                leaderboardTable.add(createTableCell(String.format("%d:%02d", minutes, seconds), false), 1, i + 1);
+                leaderboardTable.add(createTableCell(
+                        String.format("%d:%02d", totalSeconds / 60, totalSeconds % 60), false), 1, i + 1);
             }
         }
     }
 
-    // Helper method to create individual cells for the "Excel" look
     private StackPane createTableCell(String textContent, boolean isHeader) {
+        String textColor = isDarkMode ? "#ffffff" : "#000000";
         Text text = new Text(textContent);
         text.setFont(Font.font("Arial", isHeader ? FontWeight.BOLD : FontWeight.NORMAL, 14));
+        text.setFill(Color.web(textColor));
 
         StackPane cell = new StackPane(text);
         cell.setAlignment(Pos.CENTER);
         cell.setPrefWidth(100);
         cell.setPrefHeight(30);
 
-        // Headers get a slight grey tint, data cells are pure white
-        cell.setStyle("-fx-background-color: " + (isHeader ? "#dee2e6" : "#ffffff") + ";");
+        String cellBg = isDarkMode
+                ? (isHeader ? "#323232" : "#4b4d4e")
+                : (isHeader ? "#dee2e6" : "#ffffff");
+        cell.setStyle("-fx-background-color: " + cellBg + ";");
         return cell;
     }
 
     private void buildOptionsMenuInterface() {
-        VBox optionsVerticalLayout = new VBox(20);
+        optionsVerticalLayout = new VBox(20);
         optionsVerticalLayout.setAlignment(Pos.CENTER);
         optionsVerticalLayout.setPrefSize(800, 600);
 
-        Text optionsTitleText = new Text("OPTIONS");
+        optionsTitleText = new Text("OPTIONS");
         optionsTitleText.setFont(Font.font("Arial", FontWeight.BOLD, 30));
 
-        Label musicControlLabel = new Label("Music Volume");
-        Slider musicControlSlider = new Slider(0, 1, 0.5);
-        musicControlSlider.valueProperty().addListener((observableValue, oldSliderValue, newSliderValue) ->
-                currentAudioSystem.setMusicVolume(newSliderValue.doubleValue()));
+        themeLabel = new Label("Game Theme");
+        ComboBox<String> themeBox = new ComboBox<>();
+        themeBox.getItems().addAll("Light Mode", "Dark Mode");
+        themeBox.setValue(isDarkMode ? "Dark Mode" : "Light Mode");
+        themeBox.setOnAction(e -> {
+            isDarkMode = themeBox.getValue().equals("Dark Mode");
+            DatabaseHelper.saveSetting("dark_mode", String.valueOf(isDarkMode));
+            updateTheme();
+        });
 
-        Label soundControlLabel = new Label("Sound Effects Volume");
+        musicTrackLabel = new Label("Background Music");
+        ComboBox<String> musicBox = new ComboBox<>();
+        List<String> musicFiles = AudioSystem.scanAudioDirectory("/audio/music/");
+        Map<String, String> musicMap = new LinkedHashMap<>();
+        for (String f : musicFiles) musicMap.put(stripExtension(f), f);
+
+        if (musicMap.isEmpty()) {
+            musicBox.getItems().add("— No tracks found —");
+            musicBox.setValue("— No tracks found —");
+            musicBox.setDisable(true);
+        } else {
+            musicBox.getItems().addAll(musicMap.keySet());
+
+            String initialMusicDisplay = musicBox.getItems().get(0);
+            if (savedMusicTrack != null) {
+                for (Map.Entry<String, String> entry : musicMap.entrySet()) {
+                    if (entry.getValue().equals(savedMusicTrack)) {
+                        initialMusicDisplay = entry.getKey();
+                        break;
+                    }
+                }
+            }
+            musicBox.setValue(initialMusicDisplay);
+        }
+
+        musicBox.setOnAction(e -> {
+            if (!musicBox.isDisabled()) {
+                String actual = musicMap.get(musicBox.getValue());
+                if (actual != null) {
+                    currentAudioSystem.setMusicTrack(actual);
+                    DatabaseHelper.saveSetting("music_track", actual);
+                    savedMusicTrack = actual;
+                }
+            }
+        });
+
+        clickSoundLabel = new Label("Click Sound Effect");
+        ComboBox<String> soundBox = new ComboBox<>();
+        List<String> clickFiles = AudioSystem.scanAudioDirectory("/audio/clicks/");
+        Map<String, String> clickMap = new LinkedHashMap<>();
+        for (String f : clickFiles) clickMap.put(stripExtension(f), f);
+
+        if (clickMap.isEmpty()) {
+            soundBox.getItems().add("— No sounds found —");
+            soundBox.setValue("— No sounds found —");
+            soundBox.setDisable(true);
+        } else {
+            soundBox.getItems().addAll(clickMap.keySet());
+
+            String initialClickDisplay = soundBox.getItems().get(0);
+            if (savedClickSound != null) {
+                for (Map.Entry<String, String> entry : clickMap.entrySet()) {
+                    if (entry.getValue().equals(savedClickSound)) {
+                        initialClickDisplay = entry.getKey();
+                        break;
+                    }
+                }
+            }
+            soundBox.setValue(initialClickDisplay);
+        }
+
+        soundBox.setOnAction(e -> {
+            if (!soundBox.isDisabled()) {
+                String actual = clickMap.get(soundBox.getValue());
+                if (actual != null) {
+                    currentAudioSystem.setClickSound(actual);
+                    DatabaseHelper.saveSetting("click_sound", actual);
+                    savedClickSound = actual;
+                }
+            }
+        });
+
+        musicControlLabel = new Label("Music Volume");
+        Slider musicControlSlider = new Slider(0, 1, 0.5);
+        musicControlSlider.valueProperty().addListener((obs, oldVal, newVal) ->
+                currentAudioSystem.setMusicVolume(newVal.doubleValue()));
+
+        soundControlLabel = new Label("Sound Effects Volume");
         Slider soundControlSlider = new Slider(0, 1, 0.5);
-        soundControlSlider.valueProperty().addListener((observableValue, oldSliderValue, newSliderValue) ->
-                currentAudioSystem.setSoundVolume(newSliderValue.doubleValue()));
+        soundControlSlider.valueProperty().addListener((obs, oldVal, newVal) ->
+                currentAudioSystem.setSoundVolume(newVal.doubleValue()));
 
         optionsReturnButton = new Button("Back");
 
-        optionsVerticalLayout.getChildren().addAll(optionsTitleText, musicControlLabel, musicControlSlider, soundControlLabel, soundControlSlider, optionsReturnButton);
+        optionsVerticalLayout.getChildren().addAll(
+                optionsTitleText,
+                themeLabel, themeBox,
+                musicTrackLabel, musicBox, musicControlLabel, musicControlSlider,
+                clickSoundLabel, soundBox, soundControlLabel, soundControlSlider,
+                optionsReturnButton
+        );
         optionsMenuScene = new Scene(optionsVerticalLayout);
+    }
+
+    private String stripExtension(String filename) {
+        int dot = filename.lastIndexOf('.');
+        return dot > 0 ? filename.substring(0, dot) : filename;
+    }
+
+    private void updateTheme() {
+        String bgColor = isDarkMode ? "#2b2b2b" : "#f4f4f4";
+        String textColor = isDarkMode ? "#ffffff" : "#000000";
+        String leaderboardBg = isDarkMode ? "#3c3f41" : "#e9ecef";
+        String leaderboardBorder = isDarkMode ? "#555555" : "#ced4da";
+
+        if (mainMenuRoot != null)
+            mainMenuRoot.setStyle("-fx-background-color: " + bgColor + ";");
+        if (optionsVerticalLayout != null)
+            optionsVerticalLayout.setStyle("-fx-background-color: " + bgColor + ";");
+        if (leaderboardLayout != null)
+            leaderboardLayout.setStyle(
+                    "-fx-background-color: " + leaderboardBg + ";" +
+                            " -fx-border-color: " + leaderboardBorder + ";" +
+                            " -fx-border-width: 0 2 0 0;");
+
+        if (titleDisplayText != null) titleDisplayText.setFill(Color.web(textColor));
+        if (optionsTitleText != null) optionsTitleText.setFill(Color.web(textColor));
+        if (leaderboardTitle != null) leaderboardTitle.setFill(Color.web(textColor));
+        if (musicControlLabel != null) musicControlLabel.setTextFill(Color.web(textColor));
+        if (soundControlLabel != null) soundControlLabel.setTextFill(Color.web(textColor));
+        if (themeLabel != null) themeLabel.setTextFill(Color.web(textColor));
+        if (musicTrackLabel != null) musicTrackLabel.setTextFill(Color.web(textColor));
+        if (clickSoundLabel != null) clickSoundLabel.setTextFill(Color.web(textColor));
+
+        updateLeaderboardTable();
     }
 
     private void controlGameInitialization(int targetColumns, int targetRows, int targetMines, String difficultyName) {
@@ -243,15 +374,16 @@ public class App extends Application {
         if (gameTimer != null) gameTimer.stop();
         gameTimer = new Timeline(new KeyFrame(Duration.seconds(1), e -> {
             timeSecondsElapsed++;
-            int minutes = timeSecondsElapsed / 60;
-            int seconds = timeSecondsElapsed % 60;
-            timerText.setText(String.format("Time: %d:%02d", minutes, seconds));
+            timerText.setText(String.format("Time: %d:%02d",
+                    timeSecondsElapsed / 60, timeSecondsElapsed % 60));
         }));
         gameTimer.setCycleCount(Animation.INDEFINITE);
 
         activeGameGrid = new Cell[currentGridColumns][currentGridRows];
         primaryGameRootPane = new StackPane();
         primaryGameRootPane.setPrefSize(800, 600);
+        primaryGameRootPane.setStyle("-fx-background-color: " + (isDarkMode ? "#2b2b2b" : "#f4f4f4") + ";");
+
         BorderPane borderOrganizationPane = new BorderPane();
 
         topStatisticsBar = new HBox(20);
@@ -268,20 +400,18 @@ public class App extends Application {
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, javafx.scene.layout.Priority.ALWAYS);
-
         topStatisticsBar.getChildren().addAll(timerText, spacer, activeFlagCounterText);
 
         flagFlashTimeline = new Timeline(
-                new KeyFrame(Duration.millis(0), actionEvent -> activeFlagCounterText.setFill(Color.RED)),
-                new KeyFrame(Duration.millis(100), actionEvent -> activeFlagCounterText.setFill(Color.BLACK)),
-                new KeyFrame(Duration.millis(200), actionEvent -> activeFlagCounterText.setFill(Color.RED)),
-                new KeyFrame(Duration.millis(300), actionEvent -> activeFlagCounterText.setFill(Color.BLACK)),
-                new KeyFrame(Duration.millis(400), actionEvent -> activeFlagCounterText.setFill(Color.WHITE))
+                new KeyFrame(Duration.millis(0),   e -> activeFlagCounterText.setFill(Color.RED)),
+                new KeyFrame(Duration.millis(100), e -> activeFlagCounterText.setFill(Color.BLACK)),
+                new KeyFrame(Duration.millis(200), e -> activeFlagCounterText.setFill(Color.RED)),
+                new KeyFrame(Duration.millis(300), e -> activeFlagCounterText.setFill(Color.BLACK)),
+                new KeyFrame(Duration.millis(400), e -> activeFlagCounterText.setFill(Color.WHITE))
         );
 
         GridPane centralizedGridPane = new GridPane();
         centralizedGridPane.setAlignment(Pos.CENTER);
-
         populateGridWithCells(centralizedGridPane);
 
         borderOrganizationPane.setTop(topStatisticsBar);
@@ -289,7 +419,6 @@ public class App extends Application {
         primaryGameRootPane.getChildren().add(borderOrganizationPane);
 
         activeGameScene = new Scene(primaryGameRootPane);
-
         activeGameScene.setOnKeyPressed(keyEvent -> {
             if (keyEvent.getCode() == KeyCode.ESCAPE && !isGameCurrentlyOver) {
                 togglePauseMenu();
@@ -305,9 +434,7 @@ public class App extends Application {
             isGamePaused = false;
             gameTimer.play();
         } else {
-            if (pauseMenuOverlay == null) {
-                buildPauseMenu();
-            }
+            if (pauseMenuOverlay == null) buildPauseMenu();
             gameTimer.pause();
             primaryGameRootPane.getChildren().add(pauseMenuOverlay);
             isGamePaused = true;
@@ -324,55 +451,51 @@ public class App extends Application {
         pauseTitle.setFill(Color.WHITE);
 
         Button resumeButton = new Button("Resume");
-        resumeButton.setOnAction(actionEvent -> togglePauseMenu());
+        resumeButton.setOnAction(e -> togglePauseMenu());
 
         Button settingsButton = new Button("Settings");
-        settingsButton.setOnAction(actionEvent -> {
-            optionsReturnButton.setOnAction(e -> mainApplicationStage.setScene(activeGameScene));
+        settingsButton.setOnAction(e -> {
+            optionsReturnButton.setOnAction(ev -> mainApplicationStage.setScene(activeGameScene));
             mainApplicationStage.setScene(optionsMenuScene);
         });
 
         Button mainMenuButton = new Button("Quit to Main Menu");
-        mainMenuButton.setOnAction(actionEvent -> {
+        mainMenuButton.setOnAction(e -> {
             isGamePaused = false;
-            if(gameTimer != null) gameTimer.stop();
+            if (gameTimer != null) gameTimer.stop();
             updateLeaderboardTable();
             mainApplicationStage.setScene(mainMenuScene);
         });
 
         Button quitDesktopButton = new Button("Quit to Desktop");
-        quitDesktopButton.setOnAction(actionEvent -> Platform.exit());
+        quitDesktopButton.setOnAction(e -> Platform.exit());
 
         pauseMenuOverlay.getChildren().addAll(pauseTitle, resumeButton, settingsButton, mainMenuButton, quitDesktopButton);
     }
 
     private void populateGridWithCells(GridPane activeGridPane) {
         boolean[][] minePlacementMatrix = new boolean[currentGridColumns][currentGridRows];
-        Random matrixRandomGenerator = new Random();
-        int currentlyPlacedMinesCount = 0;
+        Random rand = new Random();
 
-        while (currentlyPlacedMinesCount < currentTotalMines) {
-            int randomColumnIndex = matrixRandomGenerator.nextInt(currentGridColumns);
-            int randomRowIndex = matrixRandomGenerator.nextInt(currentGridRows);
-            if (!minePlacementMatrix[randomColumnIndex][randomRowIndex]) {
-                minePlacementMatrix[randomColumnIndex][randomRowIndex] = true;
-                currentlyPlacedMinesCount++;
+        int placed = 0;
+        while (placed < currentTotalMines) {
+            int col = rand.nextInt(currentGridColumns);
+            int row = rand.nextInt(currentGridRows);
+            if (!minePlacementMatrix[col][row]) {
+                minePlacementMatrix[col][row] = true;
+                placed++;
             }
         }
 
-        for (int iterationRowIndex = 0; iterationRowIndex < currentGridRows; iterationRowIndex++) {
-            for (int iterationColumnIndex = 0; iterationColumnIndex < currentGridColumns; iterationColumnIndex++) {
-                Cell newlyCreatedCell = new Cell(iterationColumnIndex, iterationRowIndex, minePlacementMatrix[iterationColumnIndex][iterationRowIndex]);
-                activeGameGrid[iterationColumnIndex][iterationRowIndex] = newlyCreatedCell;
-                activeGridPane.add(newlyCreatedCell, iterationColumnIndex, iterationRowIndex);
+        for (int row = 0; row < currentGridRows; row++) {
+            for (int col = 0; col < currentGridColumns; col++) {
+                Cell newlyCreatedCell = new Cell(col, row, minePlacementMatrix[col][row]);
+                activeGameGrid[col][row] = newlyCreatedCell;
+                activeGridPane.add(newlyCreatedCell, col, row);
 
                 newlyCreatedCell.setOnMouseClicked(mouseEvent -> {
                     if (isGameCurrentlyOver || isGamePaused) return;
-
-                    if (isFirstClick) {
-                        gameTimer.play();
-                        isFirstClick = false;
-                    }
+                    if (isFirstClick) { gameTimer.play(); isFirstClick = false; }
 
                     if (mouseEvent.getButton() == MouseButton.PRIMARY) {
                         controlPrimaryMouseClick(newlyCreatedCell);
@@ -384,39 +507,29 @@ public class App extends Application {
             }
         }
 
-        for (int verificationRowIndex = 0; verificationRowIndex < currentGridRows; verificationRowIndex++) {
-            for (int verificationColumnIndex = 0; verificationColumnIndex < currentGridColumns; verificationColumnIndex++) {
-                if (!activeGameGrid[verificationColumnIndex][verificationRowIndex].getIsMine()) {
-                    long totalSurroundingMines = retrieveNeighboringCellsList(activeGameGrid[verificationColumnIndex][verificationRowIndex])
-                            .stream()
-                            .filter(Cell::getIsMine)
-                            .count();
-                    activeGameGrid[verificationColumnIndex][verificationRowIndex].setNeighboringMineCount((int) totalSurroundingMines);
+        for (int row = 0; row < currentGridRows; row++) {
+            for (int col = 0; col < currentGridColumns; col++) {
+                if (!activeGameGrid[col][row].getIsMine()) {
+                    long count = retrieveNeighboringCellsList(activeGameGrid[col][row])
+                            .stream().filter(Cell::getIsMine).count();
+                    activeGameGrid[col][row].setNeighboringMineCount((int) count);
                 }
             }
         }
     }
 
     private List<Cell> retrieveNeighboringCellsList(Cell centerTargetCell) {
-        List<Cell> extractedNeighborsList = new ArrayList<>();
-        int[] coordinateDirectionOffsets = {
-                -1, -1,   0, -1,   1, -1,
-                -1,  0,            1,  0,
-                -1,  1,   0,  1,   1,  1
-        };
+        List<Cell> neighbors = new ArrayList<>();
+        int[] offsets = { -1,-1, 0,-1, 1,-1, -1,0, 1,0, -1,1, 0,1, 1,1 };
 
-        for (int arrayOffsetIndex = 0; arrayOffsetIndex < coordinateDirectionOffsets.length; arrayOffsetIndex += 2) {
-            int deltaColumnModification = coordinateDirectionOffsets[arrayOffsetIndex];
-            int deltaRowModification = coordinateDirectionOffsets[arrayOffsetIndex + 1];
-
-            int computedAdjacentColumn = centerTargetCell.getColumnIndex() + deltaColumnModification;
-            int computedAdjacentRow = centerTargetCell.getRowIndex() + deltaRowModification;
-
-            if (computedAdjacentColumn >= 0 && computedAdjacentColumn < currentGridColumns && computedAdjacentRow >= 0 && computedAdjacentRow < currentGridRows) {
-                extractedNeighborsList.add(activeGameGrid[computedAdjacentColumn][computedAdjacentRow]);
+        for (int i = 0; i < offsets.length; i += 2) {
+            int adjCol = centerTargetCell.getColumnIndex() + offsets[i];
+            int adjRow = centerTargetCell.getRowIndex() + offsets[i + 1];
+            if (adjCol >= 0 && adjCol < currentGridColumns && adjRow >= 0 && adjRow < currentGridRows) {
+                neighbors.add(activeGameGrid[adjCol][adjRow]);
             }
         }
-        return extractedNeighborsList;
+        return neighbors;
     }
 
     private void controlPrimaryMouseClick(Cell targetedCell) {
@@ -431,10 +544,11 @@ public class App extends Application {
             return;
         }
 
-        long surroundingMinesDetectedCount = retrieveNeighboringCellsList(targetedCell).stream().filter(Cell::getIsMine).count();
-        if (surroundingMinesDetectedCount == 0) {
-            for (Cell adjacentEmptyCell : retrieveNeighboringCellsList(targetedCell)) {
-                controlPrimaryMouseClick(adjacentEmptyCell);
+        long surroundingMines = retrieveNeighboringCellsList(targetedCell)
+                .stream().filter(Cell::getIsMine).count();
+        if (surroundingMines == 0) {
+            for (Cell neighbor : retrieveNeighboringCellsList(targetedCell)) {
+                controlPrimaryMouseClick(neighbor);
             }
         }
     }
@@ -449,44 +563,51 @@ public class App extends Application {
             return;
         }
 
-        boolean isCellCurrentlyFlagged = targetedCell.toggleFlagState();
-        if (isCellCurrentlyFlagged) {
-            availableFlagsCount--;
-        } else {
-            availableFlagsCount++;
-        }
+        boolean flagged = targetedCell.toggleFlagState();
+        availableFlagsCount += flagged ? -1 : 1;
         activeFlagCounterText.setText("Flags: " + availableFlagsCount);
         currentAudioSystem.playClickSound();
     }
 
     private void evaluateCurrentWinCondition() {
-        boolean isVictoryAchieved = true;
-        for (int evaluationRowIndex = 0; evaluationRowIndex < currentGridRows; evaluationRowIndex++) {
-            for (int evaluationColumnIndex = 0; evaluationColumnIndex < currentGridColumns; evaluationColumnIndex++) {
-                Cell currentlyEvaluatedCell = activeGameGrid[evaluationColumnIndex][evaluationRowIndex];
-                if (!currentlyEvaluatedCell.getIsMine() && !currentlyEvaluatedCell.getIsRevealed()) {
-                    isVictoryAchieved = false;
-                    break;
+        outer:
+        for (int row = 0; row < currentGridRows; row++) {
+            for (int col = 0; col < currentGridColumns; col++) {
+                Cell cell = activeGameGrid[col][row];
+                if (!cell.getIsMine() && !cell.getIsRevealed()) {
+                    break outer;
+                }
+                if (col == currentGridColumns - 1 && row == currentGridRows - 1) {
+                    controlGameTerminationSequence(true);
                 }
             }
         }
-        if (isVictoryAchieved) {
-            controlGameTerminationSequence(true);
+        boolean won = true;
+        for (int row = 0; row < currentGridRows; row++) {
+            for (int col = 0; col < currentGridColumns; col++) {
+                if (!activeGameGrid[col][row].getIsMine() && !activeGameGrid[col][row].getIsRevealed()) {
+                    won = false;
+                    break;
+                }
+            }
+            if (!won) break;
         }
+        if (won) controlGameTerminationSequence(true);
     }
 
     private void controlGameTerminationSequence(boolean playerHasWon) {
+        if (isGameCurrentlyOver) return;
         isGameCurrentlyOver = true;
         if (gameTimer != null) gameTimer.stop();
 
-        if (playerHasWon) {
-            DatabaseHelper.saveScore(currentDifficulty, timeSecondsElapsed);
-        }
+        System.out.println("game over - won: " + playerHasWon);
 
-        for (int finalRevealRowIndex = 0; finalRevealRowIndex < currentGridRows; finalRevealRowIndex++) {
-            for (int finalRevealColumnIndex = 0; finalRevealColumnIndex < currentGridColumns; finalRevealColumnIndex++) {
-                if (activeGameGrid[finalRevealColumnIndex][finalRevealRowIndex].getIsMine()) {
-                    activeGameGrid[finalRevealColumnIndex][finalRevealRowIndex].revealCell();
+        if (playerHasWon) DatabaseHelper.saveScore(currentDifficulty, timeSecondsElapsed);
+
+        for (int row = 0; row < currentGridRows; row++) {
+            for (int col = 0; col < currentGridColumns; col++) {
+                if (activeGameGrid[col][row].getIsMine()) {
+                    activeGameGrid[col][row].revealCell();
                 }
             }
         }
@@ -503,24 +624,25 @@ public class App extends Application {
         displayResultText.setFont(Font.font("Arial", FontWeight.BOLD, 50));
         displayResultText.setFill(playerHasWon ? Color.LIMEGREEN : Color.RED);
 
-        int minutes = timeSecondsElapsed / 60;
-        int seconds = timeSecondsElapsed % 60;
-        Text finalTimeText = new Text(String.format("Time: %d:%02d", minutes, seconds));
+        Text finalTimeText = new Text(String.format("Time: %d:%02d",
+                timeSecondsElapsed / 60, timeSecondsElapsed % 60));
         finalTimeText.setFont(Font.font("Arial", FontWeight.BOLD, 20));
         finalTimeText.setFill(Color.WHITE);
 
         Button executeRestartButton = new Button("Restart");
-        executeRestartButton.setOnAction(actionEvent -> controlGameInitialization(currentGridColumns, currentGridRows, currentTotalMines, currentDifficulty));
+        executeRestartButton.setOnAction(e ->
+                controlGameInitialization(currentGridColumns, currentGridRows, currentTotalMines, currentDifficulty));
 
         Button viewBoardButton = new Button("View Board");
-        viewBoardButton.setOnAction(actionEvent -> {
+        viewBoardButton.setOnAction(e -> {
             primaryGameRootPane.getChildren().remove(endGameOverlayLayout);
 
             Button floatingRestartButton = new Button("Restart Game");
-            floatingRestartButton.setOnAction(restartEvent -> controlGameInitialization(currentGridColumns, currentGridRows, currentTotalMines, currentDifficulty));
+            floatingRestartButton.setOnAction(re ->
+                    controlGameInitialization(currentGridColumns, currentGridRows, currentTotalMines, currentDifficulty));
 
             Button floatingMenuButton = new Button("Return to Menu");
-            floatingMenuButton.setOnAction(returnEvent -> {
+            floatingMenuButton.setOnAction(re -> {
                 updateLeaderboardTable();
                 mainApplicationStage.setScene(mainMenuScene);
             });
@@ -530,12 +652,15 @@ public class App extends Application {
         });
 
         Button returnToMenuButton = new Button("Quit to Main Menu");
-        returnToMenuButton.setOnAction(actionEvent -> {
+        returnToMenuButton.setOnAction(e -> {
             updateLeaderboardTable();
             mainApplicationStage.setScene(mainMenuScene);
         });
 
-        endGameOverlayLayout.getChildren().addAll(displayResultText, finalTimeText, executeRestartButton, viewBoardButton, returnToMenuButton);
+        endGameOverlayLayout.getChildren().addAll(
+                displayResultText, finalTimeText,
+                executeRestartButton, viewBoardButton, returnToMenuButton
+        );
         primaryGameRootPane.getChildren().add(endGameOverlayLayout);
     }
 
