@@ -13,7 +13,6 @@ public class AudioSystem {
     private MediaPlayer backgroundMusicPlayer;
     private AudioClip explosionSoundEffect;
     private AudioClip clickSoundEffect;
-
     private double currentMusicVolume = 0.5;
     private double currentSoundVolume = 0.5;
 

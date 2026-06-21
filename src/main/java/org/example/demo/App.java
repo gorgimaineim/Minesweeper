@@ -26,7 +26,6 @@ import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
 import javafx.util.Duration;
-
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -39,35 +38,27 @@ public class App extends Application {
     private Scene mainMenuScene;
     private Scene optionsMenuScene;
     private Scene activeGameScene;
-
     private AudioSystem currentAudioSystem;
-
     private int currentGridColumns = 15;
     private int currentGridRows = 15;
     private int currentTotalMines = 30;
     private int availableFlagsCount = 30;
     private String currentDifficulty = "Hard";
-
     private Cell[][] activeGameGrid;
     private boolean isGameCurrentlyOver = false;
     private boolean isGamePaused = false;
-
     private int timeSecondsElapsed = 0;
     private boolean isFirstClick = true;
     private Timeline gameTimer;
     private Text timerText;
-
     private Text activeFlagCounterText;
     private StackPane primaryGameRootPane;
     private HBox topStatisticsBar;
     private Timeline flagFlashTimeline;
-
     private VBox pauseMenuOverlay;
     private Button optionsReturnButton;
-
     private GridPane leaderboardTable;
     private String currentLeaderboardDifficulty = "Easy";
-
     private boolean isDarkMode = false;
     private BorderPane mainMenuRoot;
     private VBox optionsVerticalLayout;
@@ -80,7 +71,6 @@ public class App extends Application {
     private Label themeLabel;
     private Label musicTrackLabel;
     private Label clickSoundLabel;
-
     private String savedMusicTrack = null;
     private String savedClickSound = null;
 

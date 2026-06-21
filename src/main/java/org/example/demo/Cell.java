@@ -16,10 +16,8 @@ public class Cell extends StackPane {
     private final int rowIndex;
     private final boolean isMine;
     private int neighboringMineCount = 0;
-
     private boolean isRevealed = false;
     private boolean isFlagged = false;
-
     private final Rectangle backgroundRectangle = new Rectangle(30, 30);
     private final Text numericText = new Text();
     private final Group mineVisualGroup = new Group();
